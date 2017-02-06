@@ -1,0 +1,140 @@
+#!/bin/bash
+
+WORK_DIR="/remoteconnect"
+DOWNLOAD_SERVER="rc.lundmarks.net"
+
+JAR="generic-customize-extension.jar"
+SERVER="guacamole-server-0.9.10-incubating"
+CLIENT="guacamole-client-0.9.10-incubating"
+LDAP="guacamole-auth-ldap-0.9.10-incubating"
+WAR="guacamole.war"
+XML="server.xml"
+IP=$(/sbin/ifconfig eth0 | grep 'inet addr:' | cut -d: -f2 | awk '{ print $1}')
+
+
+LIST_OF_APPS="build-essential default-jdk htop locate tomcat7 maven libcairo2-dev \
+	 libjpeg62-turbo-dev libpng12-dev libossp-uuid-dev libavcodec-dev \
+	 libavutil-dev libswscale-dev libfreerdp-dev libpango1.0-dev \
+	 libssh2-1-dev libtelnet-dev libvncserver-dev libpulse-dev libssl-dev \
+	 libvorbis-dev libwebp-dev"
+
+
+
+
+
+echo "Please input a port number for the site to listen on.  This should correspond withe last 4 digits of the clients phone number.  It should be between 1024 and 65535."
+read -p "Port Number: " port_number </dev/tty
+
+
+if [ $port_number -gt 0 ] && [ $port_number -lt 1025 ] && [ $port_number -gt 65535 ]
+then
+	echo " The number you entered seems to be between 0 and 1024 or possibly above 65535.  This will not work.  Please rerun this setup and choose a number above 1024"
+	exit 1
+else
+	TOMCAT_PORT=$port_number
+	
+fi
+echo "*****************************************************************************************"
+echo "Please choose if this will be an LDAP install or not so we can get the right setup done. "
+echo "1) LDAP Install"
+echo "2) No LDAP"
+echo "*****************************************************************************************"
+read -n 1 -p "Please enter 1 or 2: " LDAP_INSTALL </dev/tty 
+
+
+apt-get update -y
+
+apt-get install -y --no-install-recommends $LIST_OF_APPS
+
+
+mkdir $WORK_DIR
+mkdir /usr/share/tomcat7/.guacamole/
+mkdir /usr/share/tomcat7/.guacamole/extensions
+mkdir /usr/lib/x86_64-linux-gnu/freerdp
+
+
+cd $WORK_DIR
+
+wget http://$DOWNLOAD_SERVER/$JAR
+wget http://$DOWNLOAD_SERVER/$SERVER.tar.gz
+wget http://$DOWNLOAD_SERVER/$CLIENT.tar.gz
+wget http://$DOWNLOAD_SERVER/$XML
+wget http://$DOWNLOAD_SERVER/$WAR
+
+sed -i 's/8080/'"$TOMCAT_PORT"'/' $WORK_DIR/$XML
+
+
+if [ $LDAP_INSTALL -eq 1 ]
+then
+
+	wget http://$DOWNLOAD_SERVER/$LDAP.tar.gz
+	tar -xzf $LDAP.tar.gz
+	rm $LDAP.tar.gz
+	cp $WORK_DIR/$LDAP/$LDAP.jar /usr/share/tomcat7/.guacamole/extensions
+	FINISH_MSG='Good luck with the LDAP setup.  Its a bear.'
+
+else
+
+	touch /usr/share/tomcat7/.guacamole/user-mapping.xml
+	FINISH_MSG='Do not forget to fill in the user-mapping.xml files located in /usr/share/tomcat7/.guacamole/ '
+
+fi
+
+
+
+tar -xzf $SERVER.tar.gz
+tar -xzf $CLIENT.tar.gz
+
+
+rm $SERVER.tar.gz
+rm $CLIENT.tar.gz
+
+
+cd $SERVER
+
+./configure --with-init-dir=/etc/init.d
+
+make
+
+make install
+
+ldconfig
+
+cp $WORK_DIR/$WAR /var/lib/tomcat7/webapps/
+cp /usr/local/lib/freerdp/guacdr-client.so /usr/lib/x86_64-linux-gnu/freerdp/
+cp /usr/local/lib/freerdp/guacsnd-client.so /usr/lib/x86_64-linux-gnu/freerdp/
+cp $WORK_DIR/$JAR /usr/share/tomcat7/.guacamole/extensions
+cp $WORK_DIR/$XML /etc/tomcat7/$XML
+
+
+
+echo 'guacd-host: localhost' > /usr/share/tomcat7/.guacamole/guacamole.properties
+echo 'guacd-port: 4822' >> /usr/share/tomcat7/.guacamole/guacamole.properties
+echo '' >> /usr/share/tomcat7/.guacamole/guacamole.properties
+echo '' >> /usr/share/tomcat7/.guacamole/guacamole.properties
+echo 'user-mapping: /usr/share/tomcat7/.guacamole/user-mapping.xml' >> /usr/share/tomcat7/.guacamole/guacamole.properties
+
+
+
+
+
+
+
+clear
+
+echo "We need to give Tomcat 30 seconds to settle down and then restart it.  Hang tight.  Will move on after 30 seconds here.  "
+
+sleep 30s
+/etc/init.d/tomcat7 restart
+/etc/init.d/guacd start
+
+
+
+
+
+clear
+
+echo $FINISH_MSG
+echo 'Once that is done you can direct your browser to http://'"$IP:$TOMCAT_PORT"
+
+

@@ -4,9 +4,9 @@ WORK_DIR="/remoteconnect"
 DOWNLOAD_SERVER="rc.lundmarks.net"
 
 JAR="generic-customize-extension.jar"
-SERVER="guacamole-server-0.9.10-incubating"
-CLIENT="guacamole-client-0.9.10-incubating"
-LDAP="guacamole-auth-ldap-0.9.10-incubating"
+SERVER="guacamole-server-0.9.12-incubating"
+CLIENT="guacamole-client-0.9.12-incubating"
+LDAP="guacamole-auth-ldap-0.9.12-incubating"
 WAR="guacamole.war"
 XML="server.xml"
 TOMCAT_PORT=$1
